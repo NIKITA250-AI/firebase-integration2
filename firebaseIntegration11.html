@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase User List</title>
+    <!-- Include Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #7f8c8d;
+        }
+
+        .error {
+            color: #e74c3c;
+            padding: 15px;
+            background-color: #fadbd8;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .success {
+            color: #27ae60;
+            padding: 15px;
+            background-color: #d5f5e3;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>User List from Firebase</h1>
+        <div id="statusMessage"></div>
+        <div id="userTable">
+            <div class="loading">Loading users...</div>
+        </div>
+    </div>
+
+    <script>
+        // Your Firebase configuration
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            databaseURL: "YOUR_DATABASE_URL",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Reference to the users node in the database
+        const usersRef = database.ref('users');
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const userTable = document.getElementById('userTable');
+            const statusMessage = document.getElementById('statusMessage');
+
+            // Fetch users from Firebase
+            usersRef.on('value', (snapshot) => {
+                const users = snapshot.val();
+
+                if (users) {
+                    // Clear loading message
+                    userTable.innerHTML = '';
+
+                    // Create table
+                    let tableHTML = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    // Add each user to the table
+                    Object.keys(users).forEach(userId => {
+                        const user = users[userId];
+                        tableHTML += `
+                            <tr>
+                                <td>${user.name || 'N/A'}</td>
+                                <td>${user.email || 'N/A'}</td>
+                            </tr>
+                        `;
+                    });
+
+                    tableHTML += `
+                            </tbody>
+                        </table>
+                    `;
+
+                    userTable.innerHTML = tableHTML;
+                    statusMessage.innerHTML = `<div class="success">Successfully loaded ${Object.keys(users).length} users</div>`;
+                } else {
+                    userTable.innerHTML = '<div>No users found in the database</div>';
+                }
+            }, (error) => {
+                // Handle errors
+                userTable.innerHTML = '';
+                statusMessage.innerHTML = `<div class="error">Error loading users: ${error.message}</div>`;
+                console.error('Error fetching users:', error);
+            });
+        });
+    </script>
+</body>
+
+</html>
