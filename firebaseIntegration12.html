@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback App with Edit</title>
+    <!-- Include Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+        }
+
+        th,
+        td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .action-btn {
+            padding: 5px 10px;
+            margin: 0 3px;
+            font-size: 14px;
+        }
+
+        .edit-btn {
+            background-color: #f39c12;
+        }
+
+        .edit-btn:hover {
+            background-color: #d35400;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .modal-title {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .cancel-btn {
+            background-color: #95a5a6;
+        }
+
+        .cancel-btn:hover {
+            background-color: #7f8c8d;
+        }
+
+        .update-btn {
+            background-color: #2ecc71;
+        }
+
+        .update-btn:hover {
+            background-color: #27ae60;
+        }
+
+        .status-message {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+
+        .success {
+            background-color: #d5f5e3;
+            color: #27ae60;
+            display: block;
+        }
+
+        .error {
+            background-color: #fadbd8;
+            color: #e74c3c;
+            display: block;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Feedback Submission</h1>
+
+        <div id="statusMessage" class="status-message"></div>
+
+        <form id="feedbackForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" required>
+            </div>
+            <div class="form-group">
+                <label for="message">Feedback Message</label>
+                <textarea id="message" required></textarea>
+            </div>
+            <button type="submit">Submit Feedback</button>
+        </form>
+
+        <div id="feedbackTable">
+            <div class="loading">Loading feedback...</div>
+        </div>
+    </div>
+
+    <!-- Edit Feedback Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h3 class="modal-title">Edit Feedback</h3>
+            <form id="editFeedbackForm">
+                <input type="hidden" id="editFeedbackId">
+                <div class="form-group">
+                    <label for="editUsername">Username</label>
+                    <input type="text" id="editUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="editMessage">Feedback Message</label>
+                    <textarea id="editMessage" required></textarea>
+                </div>
+                <div id="editStatusMessage" class="status-message"></div>
+                <div class="modal-actions">
+                    <button type="button" id="cancelEdit" class="cancel-btn">Cancel</button>
+                    <button type="submit" class="update-btn">Update Feedback</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Your Firebase configuration
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            databaseURL: "YOUR_DATABASE_URL",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Reference to the feedback node in the database
+        const feedbackRef = database.ref('feedback');
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const feedbackForm = document.getElementById('feedbackForm');
+            const editFeedbackForm = document.getElementById('editFeedbackForm');
+            const feedbackTable = document.getElementById('feedbackTable');
+            const statusMessage = document.getElementById('statusMessage');
+            const editStatusMessage = document.getElementById('editStatusMessage');
+            const editModal = document.getElementById('editModal');
+            const cancelEdit = document.getElementById('cancelEdit');
+
+            let currentEditId = null;
+
+            // Submit new feedback
+            feedbackForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const username = document.getElementById('username').value.trim();
+                const message = document.getElementById('message').value.trim();
+
+                if (!username || !message) {
+                    showStatusMessage('Please fill in all fields', 'error', statusMessage);
+                    return;
+                }
+
+                // Push new feedback to Firebase
+                feedbackRef.push({
+                    username: username,
+                    message: message,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                })
+                    .then(() => {
+                        feedbackForm.reset();
+                        showStatusMessage('Feedback submitted successfully!', 'success', statusMessage);
+                    })
+                    .catch(error => {
+                        showStatusMessage('Error submitting feedback: ' + error.message, 'error', statusMessage);
+                        console.error('Error submitting feedback:', error);
+                    });
+            });
+
+            // Fetch and display feedback
+            feedbackRef.on('value', (snapshot) => {
+                const feedbackData = snapshot.val();
+
+                if (feedbackData) {
+                    // Clear loading message
+                    feedbackTable.innerHTML = '';
+
+                    // Create table
+                    let tableHTML = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Message</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    // Add each feedback to the table
+                    Object.keys(feedbackData).forEach(feedbackId => {
+                        const feedback = feedbackData[feedbackId];
+                        tableHTML += `
+                            <tr>
+                                <td>${feedback.username || 'Anonymous'}</td>
+                                <td>${feedback.message || 'No message'}</td>
+                                <td>
+                                    <button class="action-btn edit-btn" data-id="${feedbackId}">Edit</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    tableHTML += `
+                            </tbody>
+                        </table>
+                    `;
+
+                    feedbackTable.innerHTML = tableHTML;
+
+                    // Add event listeners to edit buttons
+                    document.querySelectorAll('.edit-btn').forEach(btn => {
+                        btn.addEventListener('click', openEditModal);
+                    });
+                } else {
+                    feedbackTable.innerHTML = '<div>No feedback submitted yet</div>';
+                }
+            }, (error) => {
+                // Handle errors
+                feedbackTable.innerHTML = '';
+                showStatusMessage('Error loading feedback: ' + error.message, 'error', statusMessage);
+                console.error('Error fetching feedback:', error);
+            });
+
+            // Open edit modal with feedback data
+            function openEditModal(e) {
+                const feedbackId = e.target.getAttribute('data-id');
+
+                // Get feedback data from Firebase
+                feedbackRef.child(feedbackId).once('value')
+                    .then((snapshot) => {
+                        const feedback = snapshot.val();
+
+                        if (feedback) {
+                            currentEditId = feedbackId;
+
+                            // Pre-fill the edit form
+                            document.getElementById('editFeedbackId').value = feedbackId;
+                            document.getElementById('editUsername').value = feedback.username || '';
+                            document.getElementById('editMessage').value = feedback.message || '';
+                            editStatusMessage.textContent = '';
+                            editStatusMessage.className = 'status-message';
+
+                            // Show modal
+                            editModal.style.display = 'flex';
+                        }
+                    })
+                    .catch(error => {
+                        showStatusMessage('Error loading feedback for editing: ' + error.message, 'error', statusMessage);
+                        console.error('Error loading feedback:', error);
+                    });
+            }
+
+            // Submit edited feedback
+            editFeedbackForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+
+                const username = document.getElementById('editUsername').value.trim();
+                const message = document.getElementById('editMessage').value.trim();
+
+                if (!username || !message) {
+                    showStatusMessage('Please fill in all fields', 'error', editStatusMessage);
+                    return;
+                }
+
+                if (!currentEditId) {
+                    showStatusMessage('No feedback selected for editing', 'error', editStatusMessage);
+                    return;
+                }
+
+                // Update feedback in Firebase
+                feedbackRef.child(currentEditId).update({
+                    username: username,
+                    message: message,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
+                })
+                    .then(() => {
+                        showStatusMessage('Feedback updated successfully!', 'success', editStatusMessage);
+
+                        // Close modal after 1 second
+                        setTimeout(() => {
+                            editModal.style.display = 'none';
+                        }, 1000);
+                    })
+                    .catch(error => {
+                        showStatusMessage('Error updating feedback: ' + error.message, 'error', editStatusMessage);
+                        console.error('Error updating feedback:', error);
+                    });
+            });
+
+            // Close edit modal
+            cancelEdit.addEventListener('click', function () {
+                editModal.style.display = 'none';
+            });
+
+            // Close modal when clicking outside
+            window.addEventListener('click', function (e) {
+                if (e.target === editModal) {
+                    editModal.style.display = 'none';
+                }
+            });
+
+            // Helper function to show status messages
+            function showStatusMessage(message, type, element) {
+                element.textContent = message;
+                element.className = 'status-message ' + type;
+
+                // Auto-hide success messages after 3 seconds
+                if (type === 'success') {
+                    setTimeout(() => {
+                        element.className = 'status-message';
+                        element.textContent = '';
+                    }, 3000);
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
